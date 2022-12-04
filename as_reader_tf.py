@@ -8,8 +8,10 @@ import time
 import keras.backend as K
 import numpy as np
 import tensorflow as tf
-from keras.preprocessing.sequence import pad_sequences
-from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell
+from keras.utils.data_utils import pad_sequences
+#from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell
+from tensorflow.python.keras.layers.legacy_rnn.rnn_cell_impl import LSTMCell, GRUCell, MultiRNNCell
+from tensorflow.tools.compatibility.tf_upgrade_v2 import _contrib_layers_xavier_initializer_transformer
 
 _EPSILON = 10e-8
 
@@ -52,22 +54,22 @@ class AttentionSumReaderTf(object):
                                     name="embedding_matrix_w",
                                     dtype="float32")
         # 模型的输入输出
-        self.q_input = tf.placeholder(dtype=tf.int32, shape=(None, self.q_len), name="q_input")
-        self.d_input = tf.placeholder(dtype=tf.int32, shape=(None, self.d_len), name="d_input")
-        self.context_mask_bt = tf.placeholder(dtype=tf.float32, shape=(None, self.d_len), name="context_mask_bt")
-        self.candidates_bi = tf.placeholder(dtype=tf.int32, shape=(None, self.A_len), name="candidates_bi")
-        self.y_true = tf.placeholder(shape=(None, self.A_len), dtype=tf.float32, name="y_true")
+        self.q_input = tf.compat.v1.placeholder(dtype=tf.int32, shape=(None, self.q_len), name="q_input")
+        self.d_input = tf.compat.v1.placeholder(dtype=tf.int32, shape=(None, self.d_len), name="d_input")
+        self.context_mask_bt = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None, self.d_len), name="context_mask_bt")
+        self.candidates_bi = tf.compat.v1.placeholder(dtype=tf.int32, shape=(None, self.A_len), name="candidates_bi")
+        self.y_true = tf.compat.v1.placeholder(shape=(None, self.A_len), dtype=tf.float32, name="y_true")
 
         # 模型输入的长度，每个sample一个长度 shape=(None)
         d_lens = tf.reduce_sum(tf.sign(tf.abs(self.d_input)), 1)
         q_lens = tf.reduce_sum(tf.sign(tf.abs(self.q_input)), 1)
 
-        with tf.variable_scope('q_encoder', initializer=tf.contrib.layers.xavier_initializer()):
+        with tf.compat.v1.variable_scope('q_encoder'):
             # 问题的编码模型
             # output shape: (None, max_q_length, embedding_dim)
             q_embed = tf.nn.embedding_lookup(embedding, self.q_input)
             q_cell = MultiRNNCell(cells=[self.rnn_cell] * num_layers)
-            outputs, last_states = tf.nn.bidirectional_dynamic_rnn(cell_bw=q_cell,
+            outputs, last_states = tf.compat.v1.nn.bidirectional_dynamic_rnn(cell_bw=q_cell,
                                                                    cell_fw=q_cell,
                                                                    dtype="float32",
                                                                    sequence_length=q_lens,
@@ -77,12 +79,12 @@ class AttentionSumReaderTf(object):
             q_encode = tf.concat([last_states[0][-1], last_states[1][-1]], axis=-1)
             logging.info("q_encode shape {}".format(q_encode.get_shape()))
 
-        with tf.variable_scope('d_encoder', initializer=tf.contrib.layers.xavier_initializer()):
+        with tf.compat.v1.variable_scope('d_encoder'):
             # 上下文文档的编码模型
             # output shape: (None, max_d_length, embedding_dim)
             d_embed = tf.nn.embedding_lookup(embedding, self.d_input)
             d_cell = MultiRNNCell(cells=[self.rnn_cell] * num_layers)
-            outputs, last_states = tf.nn.bidirectional_dynamic_rnn(cell_bw=d_cell,
+            outputs, last_states = tf.compat.v1.nn.bidirectional_dynamic_rnn(cell_bw=d_cell,
                                                                    cell_fw=d_cell,
                                                                    dtype="float32",
                                                                    sequence_length=d_lens,
@@ -98,7 +100,7 @@ class AttentionSumReaderTf(object):
             res = K.batch_dot(tf.expand_dims(q_bf, -1), d_btf, (1, 2))
             return tf.reshape(res, [-1, self.d_len])
 
-        with tf.variable_scope('merge'):
+        with tf.compat.v1.variable_scope('merge'):
             mem_attention_pre_soft_bt = att_dot([d_encode, q_encode])
             mem_attention_pre_soft_masked_bt = tf.multiply(mem_attention_pre_soft_bt,
                                                            self.context_mask_bt,
@@ -130,20 +132,20 @@ class AttentionSumReaderTf(object):
         self.y_hat = sum_probs_batch(self.candidates_bi, self.d_input, mem_attention_bt)
 
         # 交叉熵损失函数
-        output = self.y_hat / tf.reduce_sum(self.y_hat,
-                                            reduction_indices=len(self.y_hat.get_shape()) - 1,
-                                            keep_dims=True)
+        output = self.y_hat / tf.compat.v1.reduce_sum(self.y_hat, reduction_indices=len(self.y_hat.get_shape()) - 1, keep_dims=True)
+                                            #reduction_indices=len(self.y_hat.get_shape()) - 1,
+                                            #keep_dims=True)
         # manual computation of crossentropy
         epsilon = tf.convert_to_tensor(_EPSILON, output.dtype.base_dtype, name="epsilon")
         output = tf.clip_by_value(output, epsilon, 1. - epsilon)
-        self.loss = tf.reduce_mean(- tf.reduce_sum(self.y_true * tf.log(output),
-                                                   reduction_indices=len(output.get_shape()) - 1))
+        self.loss = tf.reduce_mean(- tf.compat.v1.reduce_sum(self.y_true * tf.compat.v1.log(output), reduction_indices=len(output.get_shape()) - 1))
+                                                   #reduction_indices=len(output.get_shape()) - 1))
 
         # 计算准确率
         self.correct_prediction = tf.reduce_sum(tf.sign(tf.cast(tf.equal(tf.argmax(self.y_hat, 1),
                                                                          tf.argmax(self.y_true, 1)), "float")))
         # 模型序列化工具
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
     # noinspection PyUnusedLocal
     def train(self, train_data, valid_data, batch_size, epochs, opt_name, lr, grad_clip):
@@ -158,7 +160,7 @@ class AttentionSumReaderTf(object):
         if opt_name == "SGD":
             optimizer = tf.train.GradientDescentOptimizer(learning_rate=lr)
         elif opt_name == "ADAM":
-            optimizer = tf.train.AdamOptimizer(learning_rate=lr)
+            optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=lr)
         else:
             raise NotImplementedError("Other Optimizer Not Implemented.-_-||")
 
@@ -169,7 +171,7 @@ class AttentionSumReaderTf(object):
             if grad is not None else (grad, var)
             for grad, var in grad_vars]
         train_op = optimizer.apply_gradients(grad_vars)
-        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.compat.v1.global_variables_initializer())
 
         # 载入之前训练的模型
         self.load_weight()

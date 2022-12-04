@@ -4,11 +4,15 @@ import os
 import time
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.compat.v1.disable_eager_execution()
 
 import data_utils
 from as_reader_tf import AttentionSumReaderTf
 from attention_sum_reader import AttentionSumReader
+
+tf.app.flags.DEFINE_integer(flag_name="num_epoches_new", default_value=100, docstring="")
+tf.app.flags.DEFINE_integer(flag_name="max_count", default_value=35200, docstring="")
 
 # 基础参数
 tf.app.flags.DEFINE_bool(flag_name="debug",
@@ -45,7 +49,7 @@ tf.app.flags.DEFINE_string(flag_name="framework",
 
 # 定义数据源
 tf.app.flags.DEFINE_string(flag_name="data_dir",
-                           default_value="D:/source/data/RC-Cloze-CBT/CBTest/CBTest/data/",
+                           default_value="/home/sjt/xtpan/attention-sum-reader/CBTest/data/",
                            docstring="CBT数据集的路径")
 
 tf.app.flags.DEFINE_string(flag_name="output_dir",
@@ -65,7 +69,7 @@ tf.app.flags.DEFINE_string(flag_name="test_file",
                            docstring="CBT的测试文件")
 
 tf.app.flags.DEFINE_string(flag_name="embedding_file",
-                           default_value="D:/source/data/embedding/glove.6B/glove.6B.200d.txt",
+                           default_value="/home/sjt/xtpan/attention-sum-reader/glove.6B.100d.sample.txt",
                            docstring="glove预训练的词向量文件")
 
 tf.app.flags.DEFINE_integer(flag_name="max_vocab_num",
@@ -103,7 +107,7 @@ tf.app.flags.DEFINE_bool(flag_name="use_lstm",
 
 # 模型训练超参数
 tf.app.flags.DEFINE_integer(flag_name="embedding_dim",
-                            default_value=200,
+                            default_value=100,
                             docstring="词向量维度")
 
 tf.app.flags.DEFINE_integer(flag_name="batch_size",
@@ -267,14 +271,13 @@ if __name__ == '__main__':
     # 设置随机数种子
     np.random.seed(FLAGS.random_seed)
     tf.set_random_seed(FLAGS.random_seed)
-    FLAGS.max_count = 35200 if FLAGS.debug else None
-    FLAGS.num_epoches_new = 2 if FLAGS.debug else FLAGS.num_epoches
     # 设置Log
     logging.basicConfig(filename=FLAGS.log_file,
                         level=logging.DEBUG,
                         format='%(asctime)s %(message)s', datefmt='%y-%m-%d %H:%M')
-    save_arguments(FLAGS.__flags, "{}args-{}.json".format(FLAGS.weight_path,
-                                                          time.strftime("%Y-%m-%d-(%H-%M)",
-                                                                        time.localtime())))
+    #print("{}args-{}.json".format(FLAGS.weight_path,time.strftime("%Y-%m-%d-(%H-%M)",time.localtime())))
+    #save_arguments(FLAGS.__flags, "{}args-{}.json".format(FLAGS.weight_path,
+    #                                                         time.strftime("%Y-%m-%d-(%H-%M)",
+    #                                                                    time.localtime())))
     logging.info(FLAGS.__flags)
     tf.app.run()

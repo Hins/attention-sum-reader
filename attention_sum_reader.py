@@ -9,10 +9,12 @@ import keras.backend as K
 import numpy as np
 import tensorflow as tf
 from keras.callbacks import LambdaCallback, EarlyStopping
-from keras.engine import Input, Model
+from tensorflow.python.keras.engine.input_layer import Input
+from tensorflow.python.keras.engine.training_v1 import Model
 from keras.layers import GRU, LSTM, Bidirectional, Embedding, Lambda, Activation, Multiply
 from keras.optimizers import SGD, Adam
-from keras.preprocessing.sequence import pad_sequences
+#from keras.preprocessing.sequence import pad_sequences
+from keras.utils.data_utils import pad_sequences
 from keras.utils import plot_model
 
 

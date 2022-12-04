@@ -31,7 +31,10 @@ _BLANK = "XXXXX"
 
 def default_tokenizer(sentence):
     _DIGIT_RE = re.compile(r"\d+")
-    sentence = _DIGIT_RE.sub("0", sentence)
+    if isinstance(sentence, str):
+        sentence = _DIGIT_RE.sub("0", sentence)
+    else:
+        sentence = _DIGIT_RE.sub("0", sentence.decode("utf-8"))
     sentence = " ".join(sentence.split("|"))
     return nltk.word_tokenize(sentence.lower())
 
@@ -173,7 +176,10 @@ def cbt_data_to_token_ids(data_file, target_file, vocab_file, max_count=None):
                 if max_count and counter > max_count:
                     break
                 if counter % 22 == 21:
-                    q, a, _, A = line.split("\t")
+                    if isinstance(line,str):
+                        q, a, _, A = line.split("\t")
+                    else:
+                        q, a, _, A = line.decode('utf-8').split("\t")
                     token_ids_q = sentence_to_token_ids(q, word_dict)[1:]
                     token_ids_A = [word_dict.get(a.lower(), UNK_ID) for a in A.rstrip("\n").split("|")]
                     tokens_file.write(" ".join([str(tok) for tok in token_ids_q]) + "\t"
@@ -229,7 +235,8 @@ def read_cbt_data(file, d_len_range=None, q_len_range=None, max_count=None):
         return a_con and b_con
 
     documents, questions, answers, candidates = [], [], [], []
-    with tf.gfile.FastGFile(file, mode="r") as f:
+    print(file)
+    with gfile.FastGFile(file, mode="r") as f:
         counter = 0
         d, q, a, A = [], [], [], []
         for line in f:
@@ -257,6 +264,7 @@ def read_cbt_data(file, d_len_range=None, q_len_range=None, max_count=None):
 
     d_lens = [len(i) for i in documents]
     q_lens = [len(i) for i in questions]
+    print(d_lens)
     avg_d_len = reduce(lambda x, y: x + y, d_lens) / len(documents)
     logging.info("Document average length: %d." % avg_d_len)
     logging.info("Document midden length: %d." % len(sorted(documents, key=len)[len(documents) // 2]))
