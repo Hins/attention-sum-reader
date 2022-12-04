@@ -11,7 +11,6 @@ import tensorflow as tf
 from keras.utils.data_utils import pad_sequences
 #from tensorflow.contrib.rnn import LSTMCell, GRUCell, MultiRNNCell
 from tensorflow.python.keras.layers.legacy_rnn.rnn_cell_impl import LSTMCell, GRUCell, MultiRNNCell
-from tensorflow.tools.compatibility.tf_upgrade_v2 import _contrib_layers_xavier_initializer_transformer
 
 _EPSILON = 10e-8
 
@@ -141,6 +140,8 @@ class AttentionSumReaderTf(object):
         self.loss = tf.reduce_mean(- tf.compat.v1.reduce_sum(self.y_true * tf.compat.v1.log(output), reduction_indices=len(output.get_shape()) - 1))
                                                    #reduction_indices=len(output.get_shape()) - 1))
 
+        self.predict_label = tf.argmax(self.y_hat, 1, name="predict_label")
+
         # 计算准确率
         self.correct_prediction = tf.reduce_sum(tf.sign(tf.cast(tf.equal(tf.argmax(self.y_hat, 1),
                                                                          tf.argmax(self.y_true, 1)), "float")))
@@ -253,6 +254,7 @@ class AttentionSumReaderTf(object):
                     if lose_times >= patience:
                         logging.info("Oh u, stop training.".format(lose_times, patience))
                         exit(0)
+        return {}
 
     def test(self, test_data, batch_size):
         # 对输入进行预处理
@@ -263,6 +265,8 @@ class AttentionSumReaderTf(object):
         batch_num = len(questions_ok) // batch_size
         batch_idx = np.arange(batch_num)
         correct_num, total_num = 0, 0
+        test_start_time = time.time()
+        prediction_list = []
         for i in range(batch_num):
             start = batch_idx[i % batch_num] * batch_size
             stop = (batch_idx[i % batch_num] + 1) * batch_size
@@ -272,10 +276,17 @@ class AttentionSumReaderTf(object):
                     self.context_mask_bt: context_mask[_slice],
                     self.candidates_bi: candidates_ok[_slice],
                     self.y_true: y_true[_slice]}
-            correct, = self.sess.run([self.correct_prediction], feed_dict=data)
+            correct, predict_label = self.sess.run([self.correct_prediction, self.predict_label], feed_dict=data)
+            prediction_list.extend(predict_label)
             correct_num, total_num = correct_num + correct, total_num + batch_size
+        test_time = time.time() - test_start_time
         test_acc = correct_num / total_num
         logging.info("Test accuracy is : {:.5f}".format(test_acc))
+        logging.info("prediction_list size is {}".format(len(prediction_list)))
+        rtn_dict = {}
+        rtn_dict["label"] = prediction_list
+        rtn_dict["time"] = test_time
+        return rtn_dict
 
     def load_weight(self):
         ckpt = tf.train.get_checkpoint_state('model/')
@@ -296,7 +307,7 @@ class AttentionSumReaderTf(object):
         # TODO: 数据的ndarray按照length排序，加快训练速度
         pass
 
-    def preprocess_input_sequences(self, data, shuffle=True):
+    def preprocess_input_sequences(self, data, shuffle=False):
         """
         预处理输入：
         shuffle

@@ -10,6 +10,7 @@ import nltk
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.platform import gfile
+import jieba
 
 # 特殊词汇
 # padding,start of sentence,end of sentence,unk,end of question
@@ -51,7 +52,7 @@ def gen_vocab(data_file, tokenizer=default_tokenizer, old_counter=None, max_coun
             counter += 1
             if max_count and counter > max_count:
                 break
-            tokens = tokenizer(line.rstrip('\n'))
+            tokens = [word for word in jieba.cut(line.rstrip('\n'))]
             word_counter.update(tokens)
             if counter % 100000 == 0:
                 logging.info("Process line %d Done." % counter)
@@ -143,7 +144,9 @@ def sentence_to_token_ids(sentence, word_dict, tokenizer=default_tokenizer):
 
     Returns: 整数列表。
     """
-    return [word_dict.get(token, UNK_ID) for token in tokenizer(sentence)]
+    # for English and other languages
+    # return [word_dict.get(token, UNK_ID) for token in tokenizer(sentence)]
+    return [word_dict.get(token, UNK_ID) for token in jieba.cut(sentence)]
 
 
 def cbt_data_to_token_ids(data_file, target_file, vocab_file, max_count=None):
@@ -167,6 +170,7 @@ def cbt_data_to_token_ids(data_file, target_file, vocab_file, max_count=None):
     word_dict = load_vocab(vocab_file)
     counter = 0
 
+    logging.info("data_file is " + data_file)
     with gfile.FastGFile(data_file, mode="rb") as data_file:
         with gfile.FastGFile(target_file, mode="w") as tokens_file:
             for line in data_file:
@@ -175,11 +179,15 @@ def cbt_data_to_token_ids(data_file, target_file, vocab_file, max_count=None):
                     logging.info("Tokenizing line %d" % counter)
                 if max_count and counter > max_count:
                     break
-                if counter % 22 == 21:
+                if isinstance(line, str):
+                    size = len(line.split("\t"))
+                else:
+                    size = len(line.decode("utf-8").split("\t"))
+                if size == 3:
                     if isinstance(line,str):
-                        q, a, _, A = line.split("\t")
+                        q, a, A = line.split("\t")
                     else:
-                        q, a, _, A = line.decode('utf-8').split("\t")
+                        q, a, A = line.decode('utf-8').split("\t")
                     token_ids_q = sentence_to_token_ids(q, word_dict)[1:]
                     token_ids_A = [word_dict.get(a.lower(), UNK_ID) for a in A.rstrip("\n").split("|")]
                     tokens_file.write(" ".join([str(tok) for tok in token_ids_q]) + "\t"
@@ -197,13 +205,15 @@ def prepare_cbt_data(data_dir, train_file, valid_file, test_file, max_vocab_num,
     """
     if not gfile.Exists(os.path.join(data_dir, output_dir)):
         os.mkdir(os.path.join(data_dir, output_dir))
-    os_train_file = os.path.join(data_dir, train_file)
-    os_valid_file = os.path.join(data_dir, valid_file)
+    os_train_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", train_file)
+    os_valid_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", valid_file)
     os_test_file = os.path.join(data_dir, test_file)
-    idx_train_file = os.path.join(data_dir, output_dir, train_file + ".%d.idx" % max_vocab_num)
-    idx_valid_file = os.path.join(data_dir, output_dir, valid_file + ".%d.idx" % max_vocab_num)
+    logging.info("os_test_file is " + os_test_file)
+    idx_train_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, train_file + ".%d.idx" % max_vocab_num)
+    idx_valid_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, valid_file + ".%d.idx" % max_vocab_num)
     idx_test_file = os.path.join(data_dir, output_dir, test_file + ".%d.idx" % max_vocab_num)
-    vocab_file = os.path.join(data_dir, output_dir, "vocab.%d" % max_vocab_num)
+    vocab_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, "vocab.%d" % max_vocab_num)
+    logging.info("vocab_file" + vocab_file)
 
     if not gfile.Exists(vocab_file):
         word_counter = gen_vocab(os_train_file)
@@ -235,7 +245,6 @@ def read_cbt_data(file, d_len_range=None, q_len_range=None, max_count=None):
         return a_con and b_con
 
     documents, questions, answers, candidates = [], [], [], []
-    print(file)
     with gfile.FastGFile(file, mode="r") as f:
         counter = 0
         d, q, a, A = [], [], [], []
@@ -245,26 +254,28 @@ def read_cbt_data(file, d_len_range=None, q_len_range=None, max_count=None):
                 break
             if counter % 100000 == 0:
                 logging.info("Reading line %d in %s" % (counter, file))
-            if counter % 22 == 21:
+            if isinstance(line, str):
+                size = len(line.split("\t"))
+            else:
+                size = len(line.decode("utf-8").split("\t"))
+            if size == 3:
                 tmp = line.strip().split("\t")
                 q = tmp[0].split(" ") + [EOS_ID]
                 a = [1 if tmp[1] == i else 0 for i in d]
                 A = [a for a in tmp[2].split("|")]
                 A.remove(tmp[1])
                 A.insert(0, tmp[1])  # 将正确答案放在候选答案的第一位
-            elif counter % 22 == 0:
                 if ok(len(d), len(q)):
                     documents.append(d)
                     questions.append(q)
                     answers.append(a)
                     candidates.append(A)
-                d, q, a, A = [], [], [], []
             else:
+                d = []
                 d.extend(line.strip().split(" ") + [EOS_ID])  # 每句话结尾加上EOS的ID
 
     d_lens = [len(i) for i in documents]
     q_lens = [len(i) for i in questions]
-    print(d_lens)
     avg_d_len = reduce(lambda x, y: x + y, d_lens) / len(documents)
     logging.info("Document average length: %d." % avg_d_len)
     logging.info("Document midden length: %d." % len(sorted(documents, key=len)[len(documents) // 2]))
