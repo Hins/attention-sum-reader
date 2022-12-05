@@ -256,6 +256,55 @@ class AttentionSumReaderTf(object):
                         exit(0)
         return {}
 
+    def predict(self, predict_data, batch_size):
+        # 对输入进行预处理
+        questions_ok, documents_ok, context_mask, candidates_ok, y_true = self.preprocess_input_sequences(predict_data)
+        logging.info("Predict on {} samples, {} per batch.".format(len(questions_ok), batch_size))
+
+        # 测试
+        batch_num = len(questions_ok) // batch_size
+        batch_idx = np.arange(batch_num)
+        correct_num, total_num = 0, 0
+        test_start_time = time.time()
+        prediction_list = []
+        if batch_num == 0:
+            start = 0
+            stop = len(questions_ok)
+            _slice = np.index_exp[start:stop]
+            data = {self.q_input: questions_ok[_slice],
+                    self.d_input: documents_ok[_slice],
+                    self.context_mask_bt: context_mask[_slice],
+                    self.candidates_bi: candidates_ok[_slice],
+                    self.y_true: y_true[_slice]}
+            predict_label = self.sess.run([self.predict_label], feed_dict=data)
+            prediction_list.extend(predict_label[0])
+        else:
+            for i in range(batch_num):
+                start = batch_idx[i % batch_num] * batch_size
+                stop = (batch_idx[i % batch_num] + 1) * batch_size
+                _slice = np.index_exp[start:stop]
+                data = {self.q_input: questions_ok[_slice],
+                        self.d_input: documents_ok[_slice],
+                        self.context_mask_bt: context_mask[_slice],
+                        self.candidates_bi: candidates_ok[_slice],
+                        self.y_true: y_true[_slice]}
+                predict_label = self.sess.run([self.predict_label], feed_dict=data)
+                prediction_list.extend(predict_label)
+            # last small batch
+            _slice = np.index_exp[batch_size * batch_num:]
+            data = {self.q_input: questions_ok[_slice],
+                    self.d_input: documents_ok[_slice],
+                    self.context_mask_bt: context_mask[_slice],
+                    self.candidates_bi: candidates_ok[_slice],
+                    self.y_true: y_true[_slice]}
+            predict_label = self.sess.run([self.predict_label], feed_dict=data)
+            prediction_list.extend(predict_label)
+        test_time = time.time() - test_start_time
+        rtn_dict = {}
+        rtn_dict["predict"] = prediction_list
+        rtn_dict["time"] = test_time
+        return rtn_dict
+
     def test(self, test_data, batch_size):
         # 对输入进行预处理
         questions_ok, documents_ok, context_mask, candidates_ok, y_true = self.preprocess_input_sequences(test_data)
@@ -284,7 +333,7 @@ class AttentionSumReaderTf(object):
         logging.info("Test accuracy is : {:.5f}".format(test_acc))
         logging.info("prediction_list size is {}".format(len(prediction_list)))
         rtn_dict = {}
-        rtn_dict["label"] = prediction_list
+        rtn_dict["predict"] = prediction_list
         rtn_dict["time"] = test_time
         return rtn_dict
 
@@ -314,7 +363,7 @@ class AttentionSumReaderTf(object):
         PAD/TRUNC到固定长度的序列
         y_true是长度为self.A_len的向量，index=0为正确答案，one-hot编码
         """
-        documents, questions, answer, candidates = self.union_shuffle(data) if shuffle else data
+        documents, questions, answer, candidates, ans_idx = self.union_shuffle(data) if shuffle else data
         d_lens = [len(i) for i in documents]
 
         questions_ok = pad_sequences(questions, maxlen=self.q_len, dtype="int32", padding="post", truncating="post")
@@ -322,9 +371,9 @@ class AttentionSumReaderTf(object):
         context_mask = K.eval(tf.sequence_mask(d_lens, self.d_len, dtype=tf.float32))
         candidates_ok = pad_sequences(candidates, maxlen=self.A_len, dtype="int32", padding="post", truncating="post")
         y_true = np.zeros_like(candidates_ok)
-        y_true[:, 0] = 1
+        for idx, val in enumerate(ans_idx):
+            y_true[idx][val] = 1
         return questions_ok, documents_ok, context_mask, candidates_ok, y_true
-
 
 def orthogonal_initializer(scale=1.1):
     """

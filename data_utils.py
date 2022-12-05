@@ -90,10 +90,10 @@ def load_vocab(vocab_file):
 def gen_embeddings(word_dict, embed_dim, in_file=None, init=np.zeros):
     """
     为词表建立一个初始化的词向量矩阵，如果某个词不在词向量文件中，会随机初始化一个向量。
-    
+
     :param word_dict: 词到id的映射。
     :param embed_dim: 词向量的维度。
-    :param in_file: 预训练的词向量文件。 
+    :param in_file: 预训练的词向量文件。
     :param init: 对于预训练文件中找不到的词，如何初始化。
     :return: 词向量矩阵。
     """
@@ -152,12 +152,12 @@ def sentence_to_token_ids(sentence, word_dict, tokenizer=default_tokenizer):
 def cbt_data_to_token_ids(data_file, target_file, vocab_file, max_count=None):
     """
     将语料库数据id化并存储。
-    
+
     针对CBT数据集，每22行为一个单元
     前20行：带行数的上下文
     第21行：带行数的问题\t答案\t\t候选答案1|候选答案2|...|候选答案n
     第22行：空白
-    
+
     Args:
       data_file: 源数据文件。
       target_file: 目标文件。
@@ -170,7 +170,6 @@ def cbt_data_to_token_ids(data_file, target_file, vocab_file, max_count=None):
     word_dict = load_vocab(vocab_file)
     counter = 0
 
-    logging.info("data_file is " + data_file)
     with gfile.FastGFile(data_file, mode="rb") as data_file:
         with gfile.FastGFile(target_file, mode="w") as tokens_file:
             for line in data_file:
@@ -199,21 +198,25 @@ def cbt_data_to_token_ids(data_file, target_file, vocab_file, max_count=None):
                     tokens_file.write(" ".join([str(tok) for tok in token_ids]) + "\n")
 
 
-def prepare_cbt_data(data_dir, train_file, valid_file, test_file, max_vocab_num, output_dir=""):
+def prepare_cbt_data(data_dir, train_file, valid_file, test_file, max_vocab_num, train, output_dir=""):
     """
     准备CBT语料库，建立词库并将数据id化。
     """
-    if not gfile.Exists(os.path.join(data_dir, output_dir)):
-        os.mkdir(os.path.join(data_dir, output_dir))
+    if not gfile.Exists(os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir)):
+        os.mkdir(os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir))
     os_train_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", train_file)
     os_valid_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", valid_file)
-    os_test_file = os.path.join(data_dir, test_file)
-    logging.info("os_test_file is " + os_test_file)
+    if train:
+        os_test_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", test_file)
+    else:
+        os_test_file = os.path.join(data_dir, test_file)
     idx_train_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, train_file + ".%d.idx" % max_vocab_num)
     idx_valid_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, valid_file + ".%d.idx" % max_vocab_num)
-    idx_test_file = os.path.join(data_dir, output_dir, test_file + ".%d.idx" % max_vocab_num)
+    if train:
+        idx_test_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, test_file + ".%d.idx" % max_vocab_num)
+    else:
+        idx_test_file = os.path.join(data_dir, output_dir, test_file + ".%d.idx" % max_vocab_num)
     vocab_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, "vocab.%d" % max_vocab_num)
-    logging.info("vocab_file" + vocab_file)
 
     if not gfile.Exists(vocab_file):
         word_counter = gen_vocab(os_train_file)
@@ -235,7 +238,7 @@ def read_cbt_data(file, d_len_range=None, q_len_range=None, max_count=None):
     :param file: 文件名。
     :param q_len_range: 文档长度范围。
     :param d_len_range: 问题长度范围。
-    :param max_count: 读取文件的行数，用于测试。 
+    :param max_count: 读取文件的行数，用于测试。
     :return: (documents,questions,answers,candidates) 每一个都是numpy数组的形式,shape:(num,?)
     """
 
@@ -244,7 +247,7 @@ def read_cbt_data(file, d_len_range=None, q_len_range=None, max_count=None):
         b_con = (not q_len_range) or q_len_range[0] < q_len < q_len_range[1]
         return a_con and b_con
 
-    documents, questions, answers, candidates = [], [], [], []
+    documents, questions, answers, candidates, ans_idxs = [], [], [], [], []
     with gfile.FastGFile(file, mode="r") as f:
         counter = 0
         d, q, a, A = [], [], [], []
@@ -263,13 +266,12 @@ def read_cbt_data(file, d_len_range=None, q_len_range=None, max_count=None):
                 q = tmp[0].split(" ") + [EOS_ID]
                 a = [1 if tmp[1] == i else 0 for i in d]
                 A = [a for a in tmp[2].split("|")]
-                A.remove(tmp[1])
-                A.insert(0, tmp[1])  # 将正确答案放在候选答案的第一位
                 if ok(len(d), len(q)):
                     documents.append(d)
                     questions.append(q)
                     answers.append(a)
                     candidates.append(A)
+                    ans_idxs.append(A.index(tmp[1]))
             else:
                 d = []
                 d.extend(line.strip().split(" ") + [EOS_ID])  # 每句话结尾加上EOS的ID
@@ -283,7 +285,7 @@ def read_cbt_data(file, d_len_range=None, q_len_range=None, max_count=None):
     logging.info("Question average length: %d." % avg_q_len)
     logging.info("Question midden length: %d." % len(sorted(questions, key=len)[len(questions) // 2]))
 
-    return documents, questions, answers, candidates
+    return documents, questions, answers, candidates, ans_idxs
 
 
 def test():
