@@ -202,21 +202,21 @@ def prepare_cbt_data(data_dir, train_file, valid_file, test_file, max_vocab_num,
     """
     准备CBT语料库，建立词库并将数据id化。
     """
-    if not gfile.Exists(os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir)):
-        os.mkdir(os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir))
-    os_train_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", train_file)
-    os_valid_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", valid_file)
+    if not gfile.Exists(os.path.join("./CBTest/tang/", output_dir)):
+        os.mkdir(os.path.join("./CBTest/tang/", output_dir))
+    os_train_file = os.path.join("./CBTest/tang/", train_file)
+    os_valid_file = os.path.join("./CBTest/tang/", valid_file)
     if train:
-        os_test_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", test_file)
+        os_test_file = os.path.join("./CBTest/tang/", test_file)
     else:
         os_test_file = os.path.join(data_dir, test_file)
-    idx_train_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, train_file + ".%d.idx" % max_vocab_num)
-    idx_valid_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, valid_file + ".%d.idx" % max_vocab_num)
+    idx_train_file = os.path.join("./CBTest/tang/", output_dir, train_file + ".%d.idx" % max_vocab_num)
+    idx_valid_file = os.path.join("./CBTest/tang/", output_dir, valid_file + ".%d.idx" % max_vocab_num)
     if train:
-        idx_test_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, test_file + ".%d.idx" % max_vocab_num)
+        idx_test_file = os.path.join("./CBTest/tang/", output_dir, test_file + ".%d.idx" % max_vocab_num)
     else:
         idx_test_file = os.path.join(data_dir, output_dir, test_file + ".%d.idx" % max_vocab_num)
-    vocab_file = os.path.join("/home/sjt/xtpan/attention-sum-reader/CBTest/tang/", output_dir, "vocab.%d" % max_vocab_num)
+    vocab_file = os.path.join("./CBTest/tang/", output_dir, "vocab.%d" % max_vocab_num)
 
     if not gfile.Exists(vocab_file):
         word_counter = gen_vocab(os_train_file)

@@ -60,7 +60,7 @@ tf.app.flags.DEFINE_string(flag_name="framework",
 
 # 定义数据源
 tf.app.flags.DEFINE_string(flag_name="data_dir",
-                           default_value="/home/sjt/xtpan/attention-sum-reader/CBTest/tang/",
+                           default_value="./CBTest/tang/",
                            docstring="CBT数据集的路径")
 
 tf.app.flags.DEFINE_string(flag_name="output_dir",
@@ -80,7 +80,7 @@ tf.app.flags.DEFINE_string(flag_name="test_file",
                            docstring="CBT的测试文件")
 
 tf.app.flags.DEFINE_string(flag_name="embedding_file",
-                           default_value="/home/sjt/xtpan/attention-sum-reader/glove.6B.100d.sample.txt",
+                           default_value="./glove.6B.100d.sample.txt",
                            docstring="glove预训练的词向量文件")
 
 tf.app.flags.DEFINE_integer(flag_name="max_vocab_num",
@@ -526,6 +526,8 @@ def main(input_path, result_path):
                     qas["answers"][0]["text"] = context[context_id : predict_text_length]
                     qas["answers"][0]["answer_start"] = context_id
                     idx += 1
+        if not os.path.exists(result_path):
+            os.makedirs(result_path)
         with open(result_path + "/result.json", "w", encoding='utf-8') as jsonf:
             json.dump(json_obj, jsonf, indent=4, ensure_ascii=False)
         return len(dict), dict["time"], json_obj
