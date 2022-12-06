@@ -452,7 +452,6 @@ def save_arguments(args, file):
     with open(file, "w") as fp:
         json.dump(args, fp, sort_keys=True, indent=4)
 
-
 def main(input_path, result_path):
     if not os.path.exists(FLAGS.weight_path):
         os.mkdir(FLAGS.weight_path)
@@ -464,174 +463,84 @@ def main(input_path, result_path):
                         level=logging.DEBUG,
                         format='%(asctime)s %(message)s', datefmt='%y-%m-%d %H:%M')
     #tf.app.run()
-
     if FLAGS.train:
         train_and_test(input_path)
     if FLAGS.predict:
-        # transform file from json to train format
-        random_ans_list = []
-        with open(input_path + "/predict.txt", 'w') as wf:
-            with open(input_path + "/RawData/input.json", 'r') as f:
-                json_obj = json.load(f)
-                if json_obj.get("data") is None or not hasattr(json_obj.get("data"), '__iter__'):
-                    sys.exit()
-                for element in json_obj.get("data"):
-                    if element.get("paragraphs") is None or not hasattr(element.get("paragraphs"), '__iter__'):
-                        continue
-                    for para in element.get("paragraphs"):
-                        if para.get("context") is None:
+        for file in Path(input_path).glob('**/*.json'):
+            logging.info("file{}".format(file))
+            mid = os.path.relpath(str(file), input_path)
+            logging.info("mid{}".format(mid))
+            mid_file = os.path.join(result_path, os.path.dirname(mid), str(file.stem) + '.mid')
+            logging.info("mid_file{}".format(mid_file))
+            dst_json = os.path.join(result_path, os.path.dirname(mid), str(file.stem) + '.json')
+            logging.info("dst_json{}".format(dst_json))
+            os.makedirs(os.path.dirname(dst_json), exist_ok=True)
+            # transform file from json to train format
+            ans_list = []
+            with open(mid_file, 'w') as wf:
+                with open(str(file), 'r') as f:
+                    json_obj = json.load(f)
+                    if json_obj.get("data") is None or not hasattr(json_obj.get("data"), '__iter__'):
+                        sys.exit()
+                    for element in json_obj.get("data"):
+                        if element.get("paragraphs") is None or not hasattr(element.get("paragraphs"), '__iter__'):
                             continue
-                        if para.get("qas") is None or not hasattr(para.get("qas"), '__iter__'):
-                            continue
-                        wf.write(para.get("context") + "\n")
-                        context_words_list = [word for word in jieba.cut(para.get("context"))]
-                        for qas in para.get("qas"):
-                            question = ""
-                            if qas.get("question") is None:
+                        for para in element.get("paragraphs"):
+                            if para.get("context") is None:
                                 continue
-                            question += qas.get("question") + "XXXXX\t"
-                            # a simple strategy for recall
-                            question_words_list = [word for word in jieba.cut(qas.get("question"))]
-                            queston_words_count_list = [para.get("context").count(word) for word in question_words_list]
-                            queston_words_count_list = sorted(enumerate(queston_words_count_list), key=lambda x: x[
-                                1], reverse=True)
-                            candidate_list = []
-                            for i in range(min(6, len(question_words_list))):
-                                candidate_list.append(question_words_list[queston_words_count_list[i][0]])
-                            if len(candidate_list) < 6:
-                                for i in range(6 - len(candidate_list)):
-                                    candidate_list.append(candidate_list[0])
-                            random_ans_list.append(candidate_list)
-                            question += candidate_list[0] + "\t" + "|".join(candidate_list)
-                            wf.write(question + "\n")
-        dict = train_and_test(input_path, "predict.txt")
-        idx = 0
-        for element in json_obj.get("data"):
-            for para in element.get("paragraphs"):
-                context = para.get("context")
-                for qas in para.get("qas"):
-                    if qas.get("answers") is None:
-                        qas["answers"] = []
-                    context_id = context.find(random_ans_list[idx][dict["predict"][idx]])
-                    if context_id == -1:
+                            if para.get("qas") is None or not hasattr(para.get("qas"), '__iter__'):
+                                continue
+                            wf.write(para.get("context") + "\n")
+                            for qas in para.get("qas"):
+                                question = ""
+                                if qas.get("question") is None:
+                                    continue
+                                question += qas.get("question") + "XXXXX\t"
+                                # a simple strategy for recall
+                                question_words_list = [word for word in jieba.cut(qas.get("question"))]
+                                queston_words_count_list = [para.get("context").count(word) for word in question_words_list]
+                                queston_words_count_list = sorted(enumerate(queston_words_count_list), key=lambda x: x[
+                                    1], reverse=True)
+                                candidate_list = []
+                                for i in range(min(6, len(question_words_list))):
+                                    candidate_list.append(question_words_list[queston_words_count_list[i][0]])
+                                if len(candidate_list) < 6:
+                                    for i in range(6 - len(candidate_list)):
+                                        candidate_list.append(candidate_list[0])
+                                ans_list.append(candidate_list)
+                                question += candidate_list[0] + "\t" + "|".join(candidate_list)
+                                wf.write(question + "\n")
+            dict = train_and_test("", mid_file)
+            idx = 0
+            for element in json_obj.get("data"):
+                for para in element.get("paragraphs"):
+                    context = para.get("context")
+                    for qas in para.get("qas"):
+                        if qas.get("answers") is None:
+                            qas["answers"] = []
+                        context_id = context.find(ans_list[idx][dict["predict"][idx]])
+                        if context_id == -1:
+                            idx += 1
+                            continue
+                        predict_text_length = random.randint(1,10)
+                        if context_id + predict_text_length > len(context):
+                            predict_text_length = len(context) - 1
+                        else:
+                            predict_text_length += context_id
+                        if len(qas["answers"]) == 0:
+                            qas["answers"].append({})
+                        qas["answers"][0]["text"] = context[context_id : predict_text_length]
+                        qas["answers"][0]["answer_start"] = context_id
                         idx += 1
-                        continue
-                    predict_text_length = random.randint(1,10)
-                    if context_id + predict_text_length > len(context):
-                        predict_text_length = len(context) - 1
-                    else:
-                        predict_text_length += context_id
-                    if len(qas["answers"]) == 0:
-                        qas["answers"].append({})
-                    qas["answers"][0]["text"] = context[context_id : predict_text_length]
-                    qas["answers"][0]["answer_start"] = context_id
-                    idx += 1
-        if not os.path.exists(result_path):
-            os.makedirs(result_path)
-        with open(result_path + "/result.json", "w", encoding='utf-8') as jsonf:
-            json.dump(json_obj, jsonf, indent=4, ensure_ascii=False)
-        return len(dict), dict["time"], json_obj
+            with open(dst_json, "w", encoding='utf-8') as jsonf:
+                json.dump(json_obj, jsonf, indent=4, ensure_ascii=False)
+            return len(dict), dict["time"], json_obj
     if FLAGS.test:
-        log_path = ""
-        read_flie_size = 0
-        for root, dirs, files in os.walk(input_path, topdown=True):
-            for file in files:
-                txtfile = os.path.join(root, file)
-                log_path = os.path.join(root.replace(input_path, result_path), "log")
-                if not os.path.exists(log_path):
-                    os.makedirs(log_path)
-                log_path = os.path.join(log_path, "info.log")
-                read_flie_size += os.path.getsize(txtfile)
-
-        for file in Path(input_path).glob('**/*.txt'):
+        for file in Path(input_path).glob('**/*.json'):
             logging.info("file{}".format(file))
             mid = os.path.relpath(str(file), input_path)
             logging.info("mid{}".format(mid))
             dst_json = os.path.join(result_path, os.path.dirname(mid), str(file.stem) + '.json')
             logging.info("dst_json{}".format(dst_json))
             os.makedirs(os.path.dirname(dst_json), exist_ok=True)
-
-            lis = []
-            with open(input_path + "/Answer/input.json", 'r') as f:
-                d = {}
-                context = ""
-                for line in f:
-                    if isinstance(line, str):
-                        elements = line.split("\t")
-                        size = len(elements)
-                    else:
-                        elements = line.decode('utf-8').split("\t")
-                        size = len(elements)
-                    if size != 3:
-                        d = {}
-                        d["context"] = line
-                        context = line
-                    else:
-                        d = {}
-                        d["context"] = context
-                        d["question"] = elements[0].replace("XXXXX", "")
-                        d["predict"] = elements[1]
-                        d["answer"] = [ans for ans in elements[2].split("|")]
-                        lis.append(d)
-
-            # 是否启动资源评测工具进行监控，默认不启动，启动时传参mon=yes(不为no都可以)
-            if args.mon == 'no':
-                dict = train_and_test(input_path, "/Answer/input.json")
-                test_time = dict["time"]
-                len_data = len(dict["label"])
-                for idx, label in enumerate(dict["label"]):
-                    lis[idx]["answer"] = lis[idx]["answer"][label]
-                with open(dst_json, 'w', encoding='utf-8') as jsonf:
-                    json.dump(lis, jsonf, indent=4, ensure_ascii=False)
-            else:
-                log = logging.getLogger()
-                log.setLevel("INFO")
-                file = logging.FileHandler(log_path, encoding="utf-8")
-                fmt = '%(asctime)s--%(levelname)s-%(filename)s-%(lineno)d >>> %(message)s'
-                pycharm_fmt = logging.Formatter(fmt=fmt)
-                file.setFormatter(fmt=pycharm_fmt)
-                log.addHandler(file)
-
-                th = threading.Thread(target=CPU_Memory_utilization)
-                th.setDaemon(True)  # 将子线程设置为守护线程（当主线程执行完成后，子线程无论是否执行完成都停止执行）
-                th.start()
-
-                time.sleep(1)
-                dict = train_and_test(input_path, "/Answer/input.json")
-                test_time = dict["time"]
-                len_data = len(dict["label"])
-                for idx in range(len(dict["label"])):
-                    lis[idx]["answer"] = lis[idx]["answer"][dict["label"][idx]]
-                with open(dst_json, 'w', encoding='utf-8') as jsonf:
-                    json.dump(lis, jsonf, indent=4, ensure_ascii=False)
-                write_flie_size = read_byte(lis)
-
-                # 吞吐量及响应时间
-                handling_capacity = {"handling_capacity(t/s)": round(len_data / test_time, 2),
-                                     "numerator_test_len": len_data,
-                                     "denominator_predict_time(s)": round(test_time, 2)}
-                response_time = {"response_time(ms/t)": round(test_time / len_data * 1000, 2),
-                                 "numerator_predict_time(s)": round(test_time, 2),
-                                 "denominator_test_len": len_data}
-
-                cpu_ = {"逻辑CPU个数": psutil.cpu_count(),
-                        "物理CPU个数": psutil.cpu_count(logical=False),
-                        "CPU频率": get_cpu_frequency(),
-                        "CPU时间花费": get_cpu_time()}
-
-                disk_ = {"程序读取字节数": read_flie_size,
-                         "程序写入字节数": write_flie_size,
-                         "所有已挂磁盘": get_all_disk_info(),
-                         "磁盘使用情况": get_disk_used(),
-                         "磁盘io统计": get_disk_io()}
-
-                course_ = {"运行中进程top3": get_process_top3(),
-                           "运行中全部进程": psutil.pids(),
-                           "开机时间": psutil.boot_time()}
-
-                logging.info("吞吐量:" + str(handling_capacity))
-                logging.info("响应时间:" + str(response_time))
-                logging.info("模型io字节及磁盘信息:" + str(disk_))
-                logging.info("CPU信息:" + str(cpu_))
-                logging.info("网卡信息:" + str(get_net_info()))
-                logging.info("进程信息:" + str(course_))
+            train_and_test("", str(file))
