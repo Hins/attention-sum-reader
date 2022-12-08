@@ -1,39 +1,43 @@
-# AS-Reader in tensorflow and keras
+# 基于AS-Reader的中文阅读理解推理工具
 
-## About This Repo
+## 目录
 
-This is the tensorflow/keras version implementation/reproduce of the Attention Sum Reader model as presented in "Text Comprehension with the Attention Sum Reader Network" available at [http://arxiv.org/abs/1603.01547](http://arxiv.org/abs/1603.01547). 
++ <a href="#1">功能介绍</a>
++ <a href="#2">上手指南</a>
+  + <a href="#3">开发前的配置要求</a>
+  + <a href="#4">安装步骤</a>
++ <a href="#5">文件目录说明</a>
 
-And the original implementation is in [https://github.com/rkadlec/asreader](https://github.com/rkadlec/asreader).
+## <span name="1">功能介绍</span>
 
-## Quick Start
+​		基于AS-Reader的中文阅读理解推理工具，针对中文阅读理解模型输出的结果计算rouge、bleu等指标。这些值越高越 好。输入的格式为 .json 输出格式为 .json
 
-#### 1.Getting data
+##<span name="2">上手指南 </span>
 
-- Download CBT dataset, other dataset is not implemented.[https://github.com/rkadlec/asreader/blob/master/data/prepare-cbt-data.sh](https://github.com/rkadlec/asreader/blob/master/data/prepare-cbt-data.sh)
+### <span name="3">开发前的配置要求</span>
 
-#### 2.Install dependencies
+arm服务器
+Keras
+nltk
+numpy
+tensorflow
+scikit_learn
+psutil
+jieba
 
-- Ensure you have installed python3.5 in your computer.
-- Install keras and theano and other necessary packages.
+### <span name="4">安装步骤</span>
 
-`pip install -r requirements.txt`
+pip install -r requirements.txt
 
-- Install nltk punkt for tokenizer.
+## <span name="5">文件目录说明</span>
 
-`python -m nltk.downloader punkt`
-
-#### 3.Train the model
-
-You can now train the model by entering the following command.
-
-`python main.py --data_dir data_path --train_file **.txt --valid_file **.txt`
-
-## Details
-
-For the algorithm details, see the paper. And for other detail in the code, see the README of the original implementation.
-
-
-## migration
-
-This repo is not updated now, go to [github.com/cairohy/RC-experiments](github.com/cairohy/RC-experiments) for new models.
+code
+├── README.md ---> 工具说明
+├── Dockerfile ---> docker镜像工具
+├── as_reader_tf.py ---> attention sum reader模型定义文件
+├── attention_sum_reader.py ---> attention sum模型定义文件
+├── data_utils.py ---> 数据处理工具
+├── inference.py ---> 推理工具
+├── model ---> 模型文件夹
+├── monitoring.py ---> 监控工具
+│── requirements.txt ---> 环境安装包信息

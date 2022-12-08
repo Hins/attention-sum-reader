@@ -150,176 +150,6 @@ FLAGS = tf.app.flags.FLAGS
 d_bucket = ([150, 310], [310, 400], [450, 600], [600, 750], [750, 950])
 q_bucket = (20, 40)
 
-def get_cpu_frequency():
-    cpu_frequency = {}
-    try:
-        cpu_frequency_all = psutil.cpu_freq()
-        cpu_frequency['current'] = cpu_frequency_all.current
-        cpu_frequency['min'] = cpu_frequency_all.min
-        cpu_frequency['max'] = cpu_frequency_all.max
-    except:
-        return cpu_frequency
-
-    return cpu_frequency
-
-
-def get_cpu_time():
-    cpu_time = {}
-    cpu_time_all = psutil.cpu_times()
-    cpu_time['user'] = cpu_time_all.user
-    cpu_time['nice'] = cpu_time_all.nice
-    cpu_time['system'] = cpu_time_all.system
-    cpu_time['idle'] = cpu_time_all.idle
-    cpu_time['iowait'] = cpu_time_all.iowait
-    cpu_time['irq'] = cpu_time_all.irq
-    cpu_time['softirq'] = cpu_time_all.softirq
-    cpu_time['steal'] = cpu_time_all.steal
-    cpu_time['guest'] = cpu_time_all.guest
-    cpu_time['guest_nice'] = cpu_time_all.guest_nice
-
-    return cpu_time
-
-
-def get_all_disk_info():
-    disk_all = []
-    for num, device in enumerate(psutil.disk_partitions()):
-        dic_disk_all = {}
-        dic_disk_all['id'] = num
-        dic_disk_all['device'] = device.device
-        dic_disk_all['mountpoint'] = device.mountpoint
-        dic_disk_all['fstype'] = device.fstype
-        dic_disk_all['opts'] = device.opts
-        dic_disk_all['maxfile'] = device.maxfile
-        dic_disk_all['maxpath'] = device.maxpath
-        disk_all.append(dic_disk_all)
-
-    return disk_all
-
-
-def get_disk_used():
-    disk_used = {}
-    disk_used_all = psutil.disk_usage('/')
-    disk_used['total'] = disk_used_all.total
-    disk_used['used'] = disk_used_all.used
-    disk_used['free'] = disk_used_all.free
-    disk_used['percent'] = disk_used_all.percent
-
-    return disk_used
-
-
-def get_disk_io():
-    disk_io = {}
-    disk_io_all = psutil.disk_io_counters()
-    disk_io['read_count'] = disk_io_all.read_count
-    disk_io['write_count'] = disk_io_all.write_count
-    disk_io['read_bytes'] = disk_io_all.read_bytes
-    disk_io['write_bytes'] = disk_io_all.write_bytes
-    disk_io['read_time'] = disk_io_all.read_time
-    disk_io['write_time'] = disk_io_all.write_time
-    disk_io['read_merged_count'] = disk_io_all.read_merged_count
-    disk_io['write_merged_count'] = disk_io_all.write_merged_count
-    disk_io['busy_time'] = disk_io_all.busy_time
-
-    return disk_io
-
-
-def get_storage_info():
-    storage = {}
-    storage_all = psutil.swap_memory()
-    storage['total'] = storage_all.total
-    storage['used'] = storage_all.used
-    storage['free'] = storage_all.free
-    storage['percent'] = storage_all.percent
-    storage['sin'] = storage_all.sin
-    storage['sout'] = storage_all.sout
-
-    return storage
-
-
-def get_process_top3():
-    process_top3 = []
-    config = ['pid', 'name', 'status', 'create_time', 'memory_percent', 'io_counters', 'num_threads']
-    for i, device in enumerate(psutil.process_iter(config)):
-        process = {}
-
-        device = device.info
-        io_counters = device['io_counters']
-        dic_io = {}
-        if io_counters is not None:
-            dic_io['read_count'] = io_counters.read_count
-            dic_io['write_count'] = io_counters.write_count
-            dic_io['read_bytes'] = io_counters.read_bytes
-            dic_io['write_bytes'] = io_counters.write_bytes
-            dic_io['read_chars'] = io_counters.read_chars
-            dic_io['write_chars'] = io_counters.write_chars
-
-        process['id'] = i
-        process['pid'] = device['pid']
-        process['name'] = device['name']
-        process['status'] = device['status']
-        process['create_time'] = device['create_time']
-        process['memory_percent'] = round(device['memory_percent'], 2)  # 进程内存利用率
-        process['io_counters'] = dic_io  # 进程的IO信息,包括读写IO数字及参数
-        process['num_threads'] = device['num_threads']   # 进程开启的线程数
-        process_top3.append(process)
-        if i > 2:
-            break
-
-    return process_top3
-
-
-def get_net_info():
-    net = {}
-    net_all = psutil.net_io_counters()
-    net['bytes_sent'] = net_all.bytes_sent
-    net['bytes_recv'] = net_all.bytes_recv
-    net['packets_sent'] = net_all.packets_sent
-    net['packets_recv'] = net_all.packets_recv
-    net['errin'] = net_all.errin
-    net['errout'] = net_all.errout
-    net['dropin'] = net_all.dropin
-    net['dropout'] = net_all.dropout
-
-    return net
-
-
-def read_byte(result_evaluate):
-    # 计算磁盘写入字节数
-    def is_Chinese(word):
-        for ch in word:
-            if '\u4e00' <= ch <= '\u9fff':
-                return True
-        return False
-    result_evaluate = json.dumps(result_evaluate, indent=4, ensure_ascii=False)
-    byte_num = 0
-    for i in result_evaluate:
-        if is_Chinese(i):
-                byte_num += 3
-        else:
-                byte_num += 1
-
-    return byte_num
-
-
-def CPU_Memory_utilization():
-    # global cpu_utilization_list, memory_utilization_list
-    # cpu_utilization_list = []
-    # memory_utilization_list = []
-
-    while True:
-        cul_lis = psutil.cpu_percent(interval=1, percpu=True)
-        cul = sum(cul_lis) / len(cul_lis)
-        # cpu_utilization_list.append(cul)
-        # memory_utilization_list.append(psutil.virtual_memory().percent)
-
-        logging.info("CPU占用率:" + str(cul))
-        storage = get_storage_info()
-        storage['内存占用率'] = psutil.virtual_memory().percent
-        logging.info("内存信息:" + str(storage))
-
-        time.sleep(10)
-
-
 def train_and_test(input_path, testfile):
     # 准备数据
     vocab_file, idx_train_file, idx_valid_file, idx_test_file = data_utils.prepare_cbt_data(
@@ -389,8 +219,11 @@ def train_and_test(input_path, testfile):
     if FLAGS.predict:
         logging.info("Start predicting.\nPredictint in {} samples.".format(len(pred_answers)))
         model.load_weight()
-        return model.predict(predict_data=(pred_documents, pred_questions, pred_answers, pred_candidates, pred_ans_idx),
+        result = model.predict(predict_data=(pred_documents, pred_questions, pred_answers, pred_candidates,
+                                            pred_ans_idx),
                           batch_size=FLAGS.batch_size)
+        os.remove(idx_test_file)
+        return result
 
     if FLAGS.ensemble:
         logging.info("Start ensemble testing.\nTesting in {} samples.".format(len(test_answers)))
@@ -511,6 +344,7 @@ def main(input_path, result_path):
                                 question += candidate_list[0] + "\t" + "|".join(candidate_list)
                                 wf.write(question + "\n")
             dict = train_and_test("", mid_file)
+            os.remove(mid_file)
             idx = 0
             for element in json_obj.get("data"):
                 for para in element.get("paragraphs"):
