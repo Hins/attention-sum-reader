@@ -122,7 +122,7 @@ tf.app.flags.DEFINE_integer(flag_name="embedding_dim",
                             docstring="词向量维度")
 
 tf.app.flags.DEFINE_integer(flag_name="batch_size",
-                            default_value=32,
+                            default_value=1,
                             docstring="batch_size")
 
 tf.app.flags.DEFINE_integer(flag_name="num_epoches",
@@ -352,11 +352,16 @@ def main(input_path, result_path):
                     for qas in para.get("qas"):
                         if qas.get("answers") is None:
                             qas["answers"] = []
-                        context_id = context.find(ans_list[idx][dict["predict"][idx]])
+                        if dict["predict"][idx][0] >= len(ans_list[idx]):
+                            dict["predict"][idx][0] = len(ans_list[idx]) - 1
+                        context_id = context.find(ans_list[idx][dict["predict"][idx][0]])
                         if context_id == -1:
-                            idx += 1
-                            continue
-                        predict_text_length = random.randint(1,10)
+                            for item in ans_list[idx]:
+                                if context.find(item) == -1:
+                                    continue
+                                context_id = context.find(item)
+                                break
+                        predict_text_length = random.randint(5,15)
                         if context_id + predict_text_length > len(context):
                             predict_text_length = len(context) - 1
                         else:
@@ -366,6 +371,7 @@ def main(input_path, result_path):
                         qas["answers"][0]["text"] = context[context_id : predict_text_length]
                         qas["answers"][0]["answer_start"] = context_id
                         idx += 1
+            print("idx is ", idx)
             with open(dst_json, "w", encoding='utf-8') as jsonf:
                 json.dump(json_obj, jsonf, indent=4, ensure_ascii=False)
             return len(dict), dict["time"], json_obj
